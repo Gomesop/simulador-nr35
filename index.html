@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simulador NR-35 — Trabalho em Altura</title>
+<style>
+  :root{
+    --azul:#1a3a5c; --azul2:#2c5f8a; --laranja:#f39c12; --verde:#27ae60;
+    --vermelho:#e74c3c; --claro:#f4f7fa; --amarelo:#f1c40f;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',Arial,sans-serif}
+  body{background:linear-gradient(180deg,#87ceeb 0%,#b8d8e8 60%,#d5e5ee 100%);min-height:100vh;color:#222}
+  .tela{display:none;max-width:960px;margin:0 auto;padding:16px}
+  .tela.ativa{display:block}
+  header.hud{max-width:960px;margin:0 auto;padding:10px 16px;display:none;justify-content:space-between;align-items:center;background:var(--azul);color:#fff;border-radius:0 0 12px 12px;flex-wrap:wrap;gap:8px}
+  header.hud.ativa{display:flex}
+  .hud .fase-badge{background:var(--laranja);padding:4px 12px;border-radius:20px;font-weight:bold;font-size:14px}
+  .hud .pontos{font-weight:bold}
+  .hud .vidas{letter-spacing:2px}
+  .card{background:#fff;border-radius:14px;box-shadow:0 4px 18px rgba(0,0,0,.15);padding:22px;margin:14px 0}
+  h1{color:var(--azul);font-size:clamp(22px,4vw,34px)}
+  h2{color:var(--azul);margin-bottom:8px;font-size:clamp(18px,3vw,24px)}
+  .subtitulo{color:var(--azul2);font-weight:bold;margin-bottom:12px}
+  .btn{display:inline-block;background:var(--laranja);color:#fff;border:none;padding:12px 28px;font-size:17px;font-weight:bold;border-radius:10px;cursor:pointer;transition:transform .1s, box-shadow .2s;box-shadow:0 3px 0 #c87f0a}
+  .btn:hover{transform:translateY(-2px)}
+  .btn:active{transform:translateY(1px);box-shadow:none}
+  .btn:disabled{background:#aaa;box-shadow:none;cursor:not-allowed}
+  .btn.verde{background:var(--verde);box-shadow:0 3px 0 #1d8348}
+  .btn.azul{background:var(--azul2);box-shadow:0 3px 0 #163f5e}
+  input[type=text]{padding:12px;font-size:17px;border:2px solid var(--azul2);border-radius:10px;width:100%;max-width:380px;margin:10px 0}
+  /* grid de EPIs */
+  .grade-epi{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin:14px 0}
+  .item-epi{border:3px solid #ddd;border-radius:12px;padding:10px;text-align:center;cursor:pointer;background:#fafafa;transition:all .15s;user-select:none}
+  .item-epi:hover{border-color:var(--azul2)}
+  .item-epi.sel{border-color:var(--laranja);background:#fff6e8;box-shadow:0 0 0 2px var(--laranja)}
+  .item-epi.certo{border-color:var(--verde);background:#eafaf1}
+  .item-epi.errado{border-color:var(--vermelho);background:#fdecea;animation:treme .3s}
+  .item-epi svg{width:80px;height:80px}
+  .item-epi .nome{font-size:13px;font-weight:bold;margin-top:6px;color:#333}
+  @keyframes treme{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+  /* inspeção */
+  .item-insp{display:flex;gap:14px;align-items:center;border:2px solid #ddd;border-radius:12px;padding:12px;margin:10px 0;background:#fafafa;flex-wrap:wrap}
+  .item-insp svg{width:70px;height:70px;flex-shrink:0}
+  .item-insp .desc{flex:1;min-width:200px}
+  .item-insp .desc b{color:var(--azul)}
+  .item-insp .acoes{display:flex;gap:8px}
+  .btn-insp{padding:8px 16px;border-radius:8px;border:2px solid;font-weight:bold;cursor:pointer;background:#fff;font-size:14px}
+  .btn-insp.aprovar{border-color:var(--verde);color:var(--verde)}
+  .btn-insp.reprovar{border-color:var(--vermelho);color:var(--vermelho)}
+  .btn-insp.marcado.aprovar{background:var(--verde);color:#fff}
+  .btn-insp.marcado.reprovar{background:var(--vermelho);color:#fff}
+  .item-insp.ok{border-color:var(--verde);background:#eafaf1}
+  .item-insp.falha{border-color:var(--vermelho);background:#fdecea}
+  /* cena svg */
+  .cena{width:100%;background:linear-gradient(180deg,#aed6f1,#d6eaf8);border-radius:12px;overflow:hidden;border:3px solid var(--azul2)}
+  .ancora-ponto{cursor:pointer}
+  .ancora-ponto:hover circle.alvo{stroke:var(--laranja);stroke-width:4}
+  /* quiz */
+  .opcao{display:block;width:100%;text-align:left;padding:14px;margin:8px 0;border:2px solid #ddd;border-radius:10px;background:#fafafa;cursor:pointer;font-size:16px;transition:all .15s}
+  .opcao:hover{border-color:var(--azul2)}
+  .opcao.certa{border-color:var(--verde);background:#eafaf1;font-weight:bold}
+  .opcao.errada{border-color:var(--vermelho);background:#fdecea}
+  .feedback{padding:14px;border-radius:10px;margin:12px 0;font-size:15px;display:none}
+  .feedback.mostra{display:block}
+  .feedback.bom{background:#eafaf1;border-left:6px solid var(--verde)}
+  .feedback.ruim{background:#fdecea;border-left:6px solid var(--vermelho)}
+  /* sequência resgate */
+  .passo-resgate{display:flex;align-items:center;gap:10px;border:2px solid #ddd;border-radius:10px;padding:12px;margin:8px 0;background:#fafafa;cursor:pointer;transition:all .15s}
+  .passo-resgate:hover{border-color:var(--azul2)}
+  .passo-resgate .num{width:34px;height:34px;border-radius:50%;background:#ddd;color:#555;display:flex;align-items:center;justify-content:center;font-weight:bold;flex-shrink:0}
+  .passo-resgate.ordenado{border-color:var(--verde);background:#eafaf1}
+  .passo-resgate.ordenado .num{background:var(--verde);color:#fff}
+  .passo-resgate.erroSeq{animation:treme .3s;border-color:var(--vermelho)}
+  /* certificado */
+  .certificado{border:6px double var(--azul);padding:36px;text-align:center;background:#fffdf5}
+  .certificado h2{font-size:26px}
+  .certificado .nome-cert{font-size:30px;color:var(--laranja);font-weight:bold;margin:14px 0;text-transform:uppercase}
+  .selo{width:90px;height:90px;margin:10px auto}
+  .centro{text-align:center}
+  .barra-progresso{height:14px;background:#ddd;border-radius:7px;overflow:hidden;margin:10px 0}
+  .barra-progresso>div{height:100%;background:var(--verde);width:0%;transition:width .5s}
+  .aviso-nr{background:#fef9e7;border-left:6px solid var(--amarelo);padding:12px;border-radius:8px;margin:12px 0;font-size:14px}
+  @media print{ header.hud,.btn{display:none!important} body{background:#fff} .tela{display:none} #telaFinal{display:block} }
+</style>
+</head>
+<body>
+
+<header class="hud" id="hud">
+  <span class="fase-badge" id="hudFase">FASE 1</span>
+  <span id="hudTitulo">Seleção de EPIs</span>
+  <span class="pontos">⭐ <span id="hudPontos">0</span> pts</span>
+  <span class="vidas" id="hudVidas">❤️❤️❤️</span>
+</header>
+
+<!-- ==================== TELA INICIAL ==================== -->
+<section class="tela ativa" id="telaInicio">
+  <div class="card centro">
+    <svg viewBox="0 0 200 120" style="width:180px">
+      <rect x="88" y="10" width="8" height="100" fill="#e67e22"/>
+      <rect x="120" y="10" width="8" height="100" fill="#e67e22"/>
+      <g fill="#e67e22"><rect x="88" y="20" width="40" height="6"/><rect x="88" y="40" width="40" height="6"/><rect x="88" y="60" width="40" height="6"/><rect x="88" y="80" width="40" height="6"/><rect x="88" y="100" width="40" height="6"/></g>
+      <circle cx="60" cy="30" r="10" fill="#f1c40f"/><rect x="52" y="26" width="16" height="6" rx="3" fill="#f39c12"/>
+      <rect x="54" y="40" width="12" height="24" rx="4" fill="#2c5f8a"/>
+      <rect x="50" y="44" width="20" height="4" fill="#e74c3c"/><rect x="58" y="40" width="4" height="24" fill="#e74c3c"/>
+      <rect x="54" y="64" width="5" height="18" fill="#34495e"/><rect x="61" y="64" width="5" height="18" fill="#34495e"/>
+    </svg>
+    <h1>Simulador NR-35</h1>
+    <p class="subtitulo">Treinamento Interativo de Trabalho em Altura</p>
+    <p style="max-width:560px;margin:10px auto">Você é um profissional que precisa executar uma manutenção em uma plataforma a <b>4 metros de altura</b>, com acesso por <b>escada do tipo marinheiro</b>. Complete as 5 fases tomando as decisões corretas de segurança!</p>
+    <div class="aviso-nr" style="text-align:left;max-width:560px;margin:14px auto">⚠️ Este jogo é uma ferramenta complementar de treinamento e <b>não substitui</b> o treinamento formal da NR-35 (teórico e prático) exigido por lei.</div>
+    <input type="text" id="nomeJogador" placeholder="Digite seu nome completo" maxlength="60">
+    <br>
+    <button class="btn" onclick="iniciarJogo()">▶ INICIAR TREINAMENTO</button>
+  </div>
+</section>
+
+<!-- ==================== FASE 1: SELEÇÃO DE EPIs ==================== -->
+<section class="tela" id="telaFase1">
+  <div class="card">
+    <h2>Fase 1 — Seleção de EPIs</h2>
+    <p class="subtitulo">Missão: subir 4 metros pela escada marinheiro até a plataforma.</p>
+    <p>Antes de acessar o local, selecione <b>todos os EPIs corretos</b> para o trabalho em altura. Cuidado: há itens inadequados na lista!</p>
+    <div class="grade-epi" id="gradeEpis"></div>
+    <div class="feedback" id="fbFase1"></div>
+    <div class="centro"><button class="btn" id="btnConfFase1" onclick="confirmarFase1()">✔ CONFIRMAR SELEÇÃO</button></div>
+  </div>
+</section>
+
+<!-- ==================== ANIMAÇÃO DA SUBIDA ==================== -->
+<section class="tela" id="telaSubida">
+  <div class="card centro">
+    <h2 id="tituloSubida">EPIs corretos! Iniciando a subida…</h2>
+    <p class="subtitulo">Escada marinheiro — 4 metros</p>
+    <svg class="cena" viewBox="0 0 400 340" id="cenaSubida">
+      <rect x="0" y="310" width="400" height="30" fill="#7f8c8d"/>
+      <rect x="0" y="305" width="400" height="8" fill="#95a5a6"/>
+      <!-- estrutura / plataforma -->
+      <rect x="230" y="60" width="150" height="12" fill="#e67e22"/>
+      <rect x="230" y="72" width="150" height="240" fill="#d5dbdb"/>
+      <rect x="230" y="40" width="6" height="22" fill="#e67e22"/><rect x="374" y="40" width="6" height="22" fill="#e67e22"/>
+      <rect x="230" y="38" width="150" height="5" fill="#e67e22"/>
+      <!-- escada marinheiro com gaiola -->
+      <rect x="196" y="60" width="6" height="250" fill="#b7950b"/>
+      <rect x="222" y="60" width="6" height="250" fill="#b7950b"/>
+      <g fill="#b7950b">
+        <rect x="196" y="75" width="32" height="5"/><rect x="196" y="100" width="32" height="5"/>
+        <rect x="196" y="125" width="32" height="5"/><rect x="196" y="150" width="32" height="5"/>
+        <rect x="196" y="175" width="32" height="5"/><rect x="196" y="200" width="32" height="5"/>
+        <rect x="196" y="225" width="32" height="5"/><rect x="196" y="250" width="32" height="5"/>
+        <rect x="196" y="275" width="32" height="5"/><rect x="196" y="298" width="32" height="5"/>
+      </g>
+      <path d="M188 70 Q212 50 236 70" stroke="#b7950b" stroke-width="4" fill="none"/>
+      <path d="M188 130 Q212 110 236 130" stroke="#b7950b" stroke-width="3" fill="none" opacity=".6"/>
+      <path d="M188 200 Q212 180 236 200" stroke="#b7950b" stroke-width="3" fill="none" opacity=".6"/>
+      <!-- linha de vida vertical -->
+      <line x1="212" y1="58" x2="212" y2="305" stroke="#c0392b" stroke-width="2" stroke-dasharray="4 3"/>
+      <text x="20" y="90" font-size="13" fill="#1a3a5c" font-weight="bold">4 m</text>
+      <line x1="30" y1="100" x2="30" y2="300" stroke="#1a3a5c" stroke-width="2"/>
+      <line x1="24" y1="100" x2="36" y2="100" stroke="#1a3a5c" stroke-width="2"/>
+      <line x1="24" y1="300" x2="36" y2="300" stroke="#1a3a5c" stroke-width="2"/>
+      <!-- trabalhador -->
+      <g id="trabalhador">
+        <circle cx="212" cy="-28" r="9" fill="#f5cba7"/>
+        <path d="M202 -32 a10 8 0 0 1 20 0 l0 -3 a10 9 0 0 0 -20 0 z" fill="#f39c12"/>
+        <rect x="201" y="-36" width="22" height="5" rx="2" fill="#f39c12"/>
+        <rect x="205" y="-19" width="14" height="22" rx="4" fill="#2c5f8a"/>
+        <rect x="203" y="-14" width="18" height="4" fill="#e74c3c"/>
+        <rect x="210" y="-19" width="4" height="22" fill="#e74c3c"/>
+        <circle cx="212" cy="-8" r="3" fill="#c0392b"/>
+        <rect x="205" y="3" width="5" height="16" fill="#34495e"/>
+        <rect x="214" y="3" width="5" height="16" fill="#34495e"/>
+        <rect x="199" y="-16" width="5" height="12" fill="#f5cba7"/>
+        <rect x="220" y="-16" width="5" height="12" fill="#f5cba7"/>
+      </g>
+      <text id="altimetro" x="330" y="30" font-size="16" fill="#1a3a5c" font-weight="bold">0,0 m</text>
+    </svg>
+    <div class="barra-progresso"><div id="barraSubida"></div></div>
+    <button class="btn verde" id="btnProxFase2" style="display:none" onclick="irParaFase(2)">➜ PRÓXIMA FASE</button>
+  </div>
+</section>
+
+<!-- ==================== FASE 2: INSPEÇÃO ==================== -->
+<section class="tela" id="telaFase2">
+  <div class="card">
+    <h2>Fase 2 — Inspeção de EPIs</h2>
+    <p class="subtitulo">Todo EPI deve ser inspecionado ANTES de cada uso (NR-35, item 35.5.9).</p>
+    <p>Analise cada equipamento abaixo e marque se ele está <b>APROVADO</b> para uso ou deve ser <b>REPROVADO</b> e descartado/etiquetado.</p>
+    <div id="listaInspecao"></div>
+    <div class="feedback" id="fbFase2"></div>
+    <div class="centro"><button class="btn" id="btnConfFase2" onclick="confirmarFase2()">✔ CONCLUIR INSPEÇÃO</button></div>
+  </div>
+</section>
+
+<!-- ==================== FASE 3: ANCORAGEM ==================== -->
+<section class="tela" id="telaFase3">
+  <div class="card">
+    <h2>Fase 3 — Ponto de Ancoragem</h2>
+    <p class="subtitulo">Onde conectar o talabarte do seu cinto paraquedista?</p>
+    <p>Clique no ponto de ancoragem <b>correto</b> na cena abaixo. Lembre-se: o ponto deve ser certificado, resistente e, sempre que possível, <b>acima da cabeça</b> do trabalhador.</p>
+    <svg class="cena" viewBox="0 0 500 320" id="cenaAncoragem">
+      <rect x="0" y="290" width="500" height="30" fill="#7f8c8d"/>
+      <!-- plataforma -->
+      <rect x="40" y="120" width="420" height="14" fill="#e67e22"/>
+      <rect x="40" y="134" width="420" height="156" fill="#d5dbdb"/>
+      <!-- guarda-corpo -->
+      <g class="ancora-ponto" data-id="guardacorpo">
+        <rect x="60" y="70" width="8" height="50" fill="#f39c12"/>
+        <rect x="150" y="70" width="8" height="50" fill="#f39c12"/>
+        <rect x="55" y="66" width="110" height="7" fill="#f39c12"/>
+        <rect x="55" y="92" width="110" height="5" fill="#f39c12"/>
+        <circle class="alvo" cx="110" cy="69" r="16" fill="rgba(243,156,18,.15)" stroke="#f39c12" stroke-width="2" stroke-dasharray="5 3"/>
+        <text x="70" y="50" font-size="12" fill="#1a3a5c" font-weight="bold">Guarda-corpo</text>
+      </g>
+      <!-- tubulação -->
+      <g class="ancora-ponto" data-id="tubulacao">
+        <rect x="190" y="80" width="120" height="14" rx="7" fill="#85929e"/>
+        <rect x="200" y="94" width="8" height="26" fill="#85929e"/>
+        <rect x="292" y="94" width="8" height="26" fill="#85929e"/>
+        <circle class="alvo" cx="250" cy="87" r="16" fill="rgba(133,146,158,.15)" stroke="#85929e" stroke-width="2" stroke-dasharray="5 3"/>
+        <text x="200" y="70" font-size="12" fill="#1a3a5c" font-weight="bold">Tubulação de processo</text>
+      </g>
+      <!-- ponto certificado -->
+      <g class="ancora-ponto" data-id="certificado">
+        <rect x="380" y="20" width="14" height="30" fill="#566573"/>
+        <circle cx="387" cy="56" r="10" fill="none" stroke="#c0392b" stroke-width="5"/>
+        <circle class="alvo" cx="387" cy="56" r="20" fill="rgba(39,174,96,.12)" stroke="#27ae60" stroke-width="2" stroke-dasharray="5 3"/>
+        <text x="330" y="14" font-size="12" fill="#1a3a5c" font-weight="bold">Olhal soldado à estrutura</text>
+        <text x="352" y="90" font-size="10" fill="#566573">(identificado e certificado)</text>
+      </g>
+      <!-- corrimão de escada -->
+      <g class="ancora-ponto" data-id="corrimao">
+        <path d="M330 290 L420 200" stroke="#a04000" stroke-width="8" fill="none"/>
+        <circle class="alvo" cx="375" cy="245" r="16" fill="rgba(160,64,0,.15)" stroke="#a04000" stroke-width="2" stroke-dasharray="5 3"/>
+        <text x="340" y="280" font-size="12" fill="#1a3a5c" font-weight="bold">Corrimão</text>
+      </g>
+      <!-- trabalhador -->
+      <g transform="translate(240,230)">
+        <circle cx="0" cy="0" r="11" fill="#f5cba7"/>
+        <path d="M-12 -4 a12 9 0 0 1 24 0 l0 -3 a12 10 0 0 0 -24 0 z" fill="#f39c12"/>
+        <rect x="-8" y="10" width="16" height="26" rx="5" fill="#2c5f8a"/>
+        <rect x="-10" y="16" width="20" height="4" fill="#e74c3c"/>
+        <rect x="-2" y="10" width="4" height="26" fill="#e74c3c"/>
+        <rect x="-8" y="36" width="6" height="20" fill="#34495e"/>
+        <rect x="2" y="36" width="6" height="20" fill="#34495e"/>
+      </g>
+    </svg>
+    <div class="feedback" id="fbFase3"></div>
+    <div class="centro"><button class="btn verde" id="btnProxFase4" style="display:none" onclick="irParaFase(4)">➜ PRÓXIMA FASE</button></div>
+  </div>
+</section>
+
+<!-- ==================== FASE 4: SUBIDA SEGURA ==================== -->
+<section class="tela" id="telaFase4">
+  <div class="card">
+    <h2>Fase 4 — Comportamento Seguro na Escada</h2>
+    <p class="subtitulo">Responda corretamente para o trabalhador continuar subindo!</p>
+    <div class="barra-progresso"><div id="barraFase4"></div></div>
+    <div id="quizFase4"></div>
+    <div class="feedback" id="fbFase4"></div>
+    <div class="centro"><button class="btn verde" id="btnProxFase5" style="display:none" onclick="irParaFase(5)">➜ PRÓXIMA FASE</button></div>
+  </div>
+</section>
+
+<!-- ==================== FASE 5: EMERGÊNCIA ==================== -->
+<section class="tela" id="telaFase5">
+  <div class="card">
+    <h2>Fase 5 — Emergência e Resgate</h2>
+    <p class="subtitulo">Um colega sofreu uma queda e está suspenso pelo cinto. E agora?</p>
+    <p>Clique nas ações abaixo <b>na ordem correta</b> do procedimento de emergência:</p>
+    <div id="listaResgate"></div>
+    <div class="feedback" id="fbFase5"></div>
+    <div id="quizTrauma" style="display:none">
+      <hr style="margin:18px 0">
+      <h2 style="font-size:19px">Pergunta final — Trauma de suspensão</h2>
+      <p id="pergTrauma">Por que a vítima suspensa pelo cinto deve ser resgatada o mais rápido possível?</p>
+      <div id="opcoesTrauma"></div>
+    </div>
+    <div class="centro"><button class="btn verde" id="btnFinal" style="display:none" onclick="finalizarJogo()">🏆 CONCLUIR TREINAMENTO</button></div>
+  </div>
+</section>
+
+<!-- ==================== TELA FINAL ==================== -->
+<section class="tela" id="telaFinal">
+  <div class="card certificado">
+    <svg class="selo" viewBox="0 0 100 100">
+      <circle cx="50" cy="50" r="46" fill="#f1c40f"/>
+      <circle cx="50" cy="50" r="38" fill="#f39c12"/>
+      <text x="50" y="46" text-anchor="middle" font-size="16" fill="#fff" font-weight="bold">NR</text>
+      <text x="50" y="66" text-anchor="middle" font-size="16" fill="#fff" font-weight="bold">35</text>
+    </svg>
+    <h2>CERTIFICADO DE CONCLUSÃO</h2>
+    <p>do treinamento interativo (simulador)</p>
+    <p style="margin-top:10px">Certificamos que</p>
+    <div class="nome-cert" id="certNome">—</div>
+    <p>concluiu o <b>Simulador NR-35 — Trabalho em Altura</b><br>com aproveitamento de <b id="certPontos">0</b> pontos (<span id="certPct">0%</span>).</p>
+    <p id="certAvaliacao" style="margin:12px 0;font-weight:bold;color:var(--azul2)"></p>
+    <p style="font-size:13px;color:#777" id="certData"></p>
+    <p style="font-size:12px;color:#999;margin-top:10px">Este certificado é apenas um registro do exercício interativo e não substitui o certificado do treinamento formal da NR-35.</p>
+    <div style="margin-top:18px">
+      <button class="btn azul" onclick="window.print()">🖨 IMPRIMIR</button>
+      <button class="btn" onclick="location.reload()">🔄 JOGAR NOVAMENTE</button>
+    </div>
+  </div>
+</section>
+
+<script>
+/* ================== ESTADO ================== */
+const estado = { nome:'', pontos:0, vidas:3, maxPontos:0 };
+const PONTOS_MAX_TOTAL = 100; // referência p/ percentual
+
+function $(id){ return document.getElementById(id); }
+function mostrarTela(id){
+  document.querySelectorAll('.tela').forEach(t=>t.classList.remove('ativa'));
+  $(id).classList.add('ativa');
+  window.scrollTo(0,0);
+}
+function setHud(fase,titulo){
+  $('hud').classList.add('ativa');
+  $('hudFase').textContent = 'FASE '+fase;
+  $('hudTitulo').textContent = titulo;
+}
+function addPontos(n){
+  estado.pontos = Math.max(0, estado.pontos + n);
+  $('hudPontos').textContent = estado.pontos;
+}
+function perderVida(){
+  if(estado.vidas>0) estado.vidas--;
+  $('hudVidas').textContent = '❤️'.repeat(estado.vidas) + '🖤'.repeat(3-estado.vidas);
+}
+function feedback(el, texto, bom){
+  el.className = 'feedback mostra ' + (bom?'bom':'ruim');
+  el.innerHTML = texto;
+}
+
+function iniciarJogo(){
+  const nome = $('nomeJogador').value.trim();
+  if(!nome){ alert('Digite seu nome para começar!'); return; }
+  estado.nome = nome;
+  irParaFase(1);
+}
+
+function irParaFase(n){
+  const mapa = {
+    1:['telaFase1','Seleção de EPIs'],
+    2:['telaFase2','Inspeção de EPIs'],
+    3:['telaFase3','Ponto de Ancoragem'],
+    4:['telaFase4','Comportamento Seguro'],
+    5:['telaFase5','Emergência e Resgate']
+  };
+  setHud(n, mapa[n][1]);
+  mostrarTela(mapa[n][0]);
+  if(n===1) montarFase1();
+  if(n===2) montarFase2();
+  if(n===3) montarFase3();
+  if(n===4) montarFase4();
+  if(n===5) montarFase5();
+}
+
+/* ================== ÍCONES SVG ================== */
+const ICONES = {
+  capacete:`<svg viewBox="0 0 100 100"><path d="M20 60 a30 30 0 0 1 60 0 z" fill="#e74c3c"/><rect x="12" y="60" width="76" height="10" rx="5" fill="#c0392b"/><path d="M35 70 Q50 92 65 70" stroke="#555" stroke-width="4" fill="none"/></svg>`,
+  cinto:`<svg viewBox="0 0 100 100"><rect x="30" y="15" width="10" height="70" rx="4" fill="#e67e22"/><rect x="60" y="15" width="10" height="70" rx="4" fill="#e67e22"/><rect x="22" y="30" width="56" height="9" rx="4" fill="#d35400"/><rect x="22" y="62" width="56" height="9" rx="4" fill="#d35400"/><circle cx="50" cy="35" r="6" fill="#7f8c8d"/><path d="M44 35 h12" stroke="#555" stroke-width="2"/></svg>`,
+  travaquedas:`<svg viewBox="0 0 100 100"><line x1="50" y1="5" x2="50" y2="40" stroke="#c0392b" stroke-width="4"/><rect x="35" y="40" width="30" height="35" rx="6" fill="#7f8c8d"/><circle cx="50" cy="57" r="9" fill="#95a5a6"/><path d="M50 75 v12" stroke="#555" stroke-width="4"/><path d="M43 87 a7 7 0 1 0 14 0 a7 7 0 1 0 -14 0" fill="none" stroke="#555" stroke-width="4"/></svg>`,
+  talabarte:`<svg viewBox="0 0 100 100"><path d="M20 20 Q50 55 30 85" stroke="#e67e22" stroke-width="7" fill="none"/><path d="M80 20 Q50 55 70 85" stroke="#e67e22" stroke-width="7" fill="none"/><rect x="38" y="40" width="24" height="18" rx="4" fill="#d35400"/><path d="M15 12 a8 8 0 1 0 12 0 z" fill="none" stroke="#555" stroke-width="4"/><path d="M73 12 a8 8 0 1 0 12 0 z" fill="none" stroke="#555" stroke-width="4"/></svg>`,
+  botina:`<svg viewBox="0 0 100 100"><path d="M25 30 h22 v25 q25 2 30 18 v7 H22 z" fill="#6e2c00"/><rect x="20" y="78" width="60" height="8" rx="3" fill="#333"/><path d="M30 38 h12 M30 46 h12" stroke="#e67e22" stroke-width="3"/></svg>`,
+  oculos:`<svg viewBox="0 0 100 100"><rect x="12" y="38" width="76" height="26" rx="12" fill="#aed6f1" stroke="#2c5f8a" stroke-width="4"/><path d="M12 50 H2 M88 50 h10" stroke="#2c5f8a" stroke-width="4"/></svg>`,
+  luvas:`<svg viewBox="0 0 100 100"><path d="M35 85 V45 q0-8 6-8 t6 8 v-15 q0-8 6-8 t6 8 v15 q0-6 5-6 t5 6 v25 q0 15-17 15 z" fill="#f39c12"/><rect x="33" y="82" width="35" height="10" rx="4" fill="#d35400"/></svg>`,
+  bone:`<svg viewBox="0 0 100 100"><path d="M25 55 a25 25 0 0 1 50 0 z" fill="#3498db"/><path d="M25 55 h60 q6 0 4 6 h-64 z" fill="#2980b9"/><circle cx="50" cy="35" r="4" fill="#2980b9"/></svg>`,
+  chinelo:`<svg viewBox="0 0 100 100"><ellipse cx="50" cy="55" rx="22" ry="35" fill="#e74c3c"/><path d="M50 35 L38 60 M50 35 L62 60" stroke="#fff" stroke-width="5"/></svg>`,
+  cintocouro:`<svg viewBox="0 0 100 100"><rect x="8" y="42" width="84" height="16" rx="4" fill="#6e2c00"/><rect x="40" y="38" width="20" height="24" rx="3" fill="none" stroke="#f1c40f" stroke-width="4"/><rect x="48" y="42" width="4" height="16" fill="#f1c40f"/></svg>`,
+  corda:`<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="28" fill="none" stroke="#d4ac6e" stroke-width="9" stroke-dasharray="8 4"/><path d="M75 65 q12 8 8 20" stroke="#d4ac6e" stroke-width="8" fill="none"/></svg>`,
+  fone:`<svg viewBox="0 0 100 100"><path d="M25 60 a25 25 0 0 1 50 0" stroke="#555" stroke-width="6" fill="none"/><rect x="18" y="55" width="14" height="22" rx="6" fill="#3498db"/><rect x="68" y="55" width="14" height="22" rx="6" fill="#3498db"/></svg>`
+};
+
+/* ================== FASE 1 ================== */
+const EPIS_F1 = [
+  {id:'capacete',  nome:'Capacete com jugular',            certo:true},
+  {id:'cinto',     nome:'Cinto tipo paraquedista',         certo:true},
+  {id:'travaquedas',nome:'Trava-quedas',                   certo:true},
+  {id:'talabarte', nome:'Talabarte duplo c/ absorvedor',   certo:true},
+  {id:'botina',    nome:'Botina de segurança',             certo:true},
+  {id:'luvas',     nome:'Luvas de segurança',              certo:true},
+  {id:'oculos',    nome:'Óculos de proteção',              certo:true},
+  {id:'bone',      nome:'Boné',                            certo:false},
+  {id:'chinelo',   nome:'Chinelo',                         certo:false},
+  {id:'cintocouro',nome:'Cinto de couro comum',            certo:false},
+  {id:'corda',     nome:'Corda improvisada',               certo:false}
+];
+let selF1 = new Set();
+
+function montarFase1(){
+  selF1.clear();
+  const grade = $('gradeEpis');
+  grade.innerHTML = '';
+  const itens = [...EPIS_F1].sort(()=>Math.random()-.5);
+  itens.forEach(it=>{
+    const d = document.createElement('div');
+    d.className = 'item-epi';
+    d.dataset.id = it.id;
+    d.innerHTML = ICONES[it.id] + '<div class="nome">'+it.nome+'</div>';
+    d.onclick = ()=>{
+      if(d.classList.contains('certo')||d.classList.contains('errado')) return;
+      d.classList.toggle('sel');
+      d.classList.contains('sel') ? selF1.add(it.id) : selF1.delete(it.id);
+    };
+    grade.appendChild(d);
+  });
+  $('fbFase1').className='feedback';
+  $('btnConfFase1').disabled = false;
+}
+
+function confirmarFase1(){
+  const certos = EPIS_F1.filter(e=>e.certo).map(e=>e.id);
+  const errados = EPIS_F1.filter(e=>!e.certo).map(e=>e.id);
+  let acertos=0, faltando=[], indevidos=[];
+  certos.forEach(id=>{ selF1.has(id) ? acertos++ : faltando.push(id); });
+  errados.forEach(id=>{ if(selF1.has(id)) indevidos.push(id); });
+
+  document.querySelectorAll('#gradeEpis .item-epi').forEach(d=>{
+    const id = d.dataset.id;
+    if(certos.includes(id) && selF1.has(id)) d.classList.add('certo');
+    if(errados.includes(id) && selF1.has(id)) d.classList.add('errado');
+    if(certos.includes(id) && !selF1.has(id)) d.classList.add('errado');
+  });
+
+  if(faltando.length===0 && indevidos.length===0){
+    addPontos(20);
+    feedback($('fbFase1'),'✅ <b>Perfeito! +20 pontos.</b> Para subir a escada marinheiro de 4 m você precisa de: capacete com jugular, cinto paraquedista, trava-quedas conectado à linha de vida, talabarte duplo com absorvedor de energia, botina, luvas e óculos. Preparando a subida…', true);
+    $('btnConfFase1').disabled = true;
+    setTimeout(()=>{ mostrarTela('telaSubida'); animarSubida(); }, 2200);
+  } else {
+    perderVida();
+    let msg = '❌ <b>Revise sua seleção!</b> ';
+    if(faltando.length) msg += 'Faltou selecionar EPI(s) obrigatório(s). ';
+    if(indevidos.length) msg += 'Você incluiu item(ns) inadequado(s) para trabalho em altura. ';
+    msg += 'Corrija e confirme novamente. <i>(-1 vida)</i>';
+    feedback($('fbFase1'), msg, false);
+    setTimeout(()=>{
+      document.querySelectorAll('#gradeEpis .item-epi').forEach(d=>{
+        d.classList.remove('certo','errado');
+      });
+    }, 1800);
+  }
+}
+
+function animarSubida(){
+  const trab = $('trabalhador');
+  const alt = $('altimetro');
+  const barra = $('barraSubida');
+  const yIni = 300, yFim = 40; // posição no svg
+  let t = 0;
+  const dur = 4000;
+  const ini = performance.now();
+  function frame(agora){
+    t = Math.min(1,(agora-ini)/dur);
+    const y = yIni + (yFim-yIni)*t;
+    trab.setAttribute('transform','translate(0,'+y+')');
+    alt.textContent = (4*t).toFixed(1).replace('.',',')+' m';
+    barra.style.width = (t*100)+'%';
+    if(t<1) requestAnimationFrame(frame);
+    else {
+      $('tituloSubida').textContent = '🎉 Subida concluída com segurança!';
+      $('btnProxFase2').style.display='inline-block';
+    }
+  }
+  requestAnimationFrame(frame);
+}
+
+/* ================== FASE 2 ================== */
+const ITENS_INSP = [
+  {icone:'cinto', titulo:'Cinto paraquedista', desc:'Fitas <b>desfiadas</b> na região da perneira e costura rompida.', aprovar:false,
+   explica:'Fitas desfiadas ou costuras rompidas comprometem a resistência: REPROVAR e retirar de uso.'},
+  {icone:'capacete', titulo:'Capacete com jugular', desc:'Casco sem trincas, jugular firme, dentro do prazo de validade.', aprovar:true,
+   explica:'Sem danos e dentro da validade: APROVADO.'},
+  {icone:'talabarte', titulo:'Talabarte duplo', desc:'O <b>absorvedor de energia está rompido/acionado</b>.', aprovar:false,
+   explica:'Absorvedor acionado indica que o talabarte já sofreu impacto: REPROVAR imediatamente.'},
+  {icone:'travaquedas', titulo:'Trava-quedas', desc:'Funcionamento OK no teste, mas a <b>inspeção periódica está vencida</b>.', aprovar:false,
+   explica:'Equipamento com inspeção/certificação vencida não pode ser usado, mesmo aparentando estar bom.'},
+  {icone:'luvas', titulo:'Luvas de segurança', desc:'Limpas, sem furos ou rasgos.', aprovar:true,
+   explica:'Íntegras: APROVADAS.'},
+  {icone:'corda', titulo:'Mosquetão do talabarte', desc:'Trava dupla funcionando, sem deformações ou corrosão.', aprovar:true,
+   explica:'Trava dupla operante e sem danos: APROVADO.'}
+];
+let respInsp = {};
+
+function montarFase2(){
+  respInsp = {};
+  const lista = $('listaInspecao');
+  lista.innerHTML='';
+  ITENS_INSP.forEach((it,i)=>{
+    const d = document.createElement('div');
+    d.className='item-insp';
+    d.id='insp'+i;
+    d.innerHTML = ICONES[it.icone] +
+      '<div class="desc"><b>'+it.titulo+'</b><br>'+it.desc+'<div class="explica" style="display:none;font-size:13px;margin-top:6px;color:#555"></div></div>'+
+      '<div class="acoes">'+
+      '<button class="btn-insp aprovar" onclick="marcarInsp('+i+',true,this)">✔ Aprovar</button>'+
+      '<button class="btn-insp reprovar" onclick="marcarInsp('+i+',false,this)">✖ Reprovar</button></div>';
+    lista.appendChild(d);
+  });
+  $('fbFase2').className='feedback';
+  $('btnConfFase2').disabled=false;
+}
+
+function marcarInsp(i, val, btn){
+  respInsp[i]=val;
+  btn.parentElement.querySelectorAll('.btn-insp').forEach(b=>b.classList.remove('marcado'));
+  btn.classList.add('marcado');
+}
+
+function confirmarFase2(){
+  if(Object.keys(respInsp).length < ITENS_INSP.length){
+    feedback($('fbFase2'),'⚠️ Avalie <b>todos</b> os equipamentos antes de concluir.', false);
+    return;
+  }
+  let acertos=0;
+  ITENS_INSP.forEach((it,i)=>{
+    const d = $('insp'+i);
+    const ok = respInsp[i]===it.aprovar;
+    d.classList.add(ok?'ok':'falha');
+    d.querySelector('.explica').style.display='block';
+    d.querySelector('.explica').innerHTML = (ok?'✅ ':'❌ ')+it.explica;
+    if(ok) acertos++;
+  });
+  const pts = acertos * 3 + (acertos===ITENS_INSP.length ? 2 : 0); // até 20
+  addPontos(pts);
+  if(acertos < ITENS_INSP.length) perderVida();
+  feedback($('fbFase2'),
+    (acertos===ITENS_INSP.length ? '✅ <b>Inspeção impecável! +'+pts+' pontos.</b> ' :
+     '⚠️ Você acertou '+acertos+' de '+ITENS_INSP.length+' (+'+pts+' pontos, -1 vida). ')+
+    'Regra de ouro: <b>na dúvida, não use o EPI</b>. Equipamento reprovado deve ser identificado e retirado de circulação.',
+    acertos===ITENS_INSP.length);
+  $('btnConfFase2').disabled=true;
+  const btn = document.createElement('button');
+  btn.className='btn verde'; btn.textContent='➜ PRÓXIMA FASE';
+  btn.onclick=()=>irParaFase(3);
+  $('fbFase2').appendChild(document.createElement('br'));
+  $('fbFase2').appendChild(btn);
+}
+
+/* ================== FASE 3 ================== */
+function montarFase3(){
+  $('fbFase3').className='feedback';
+  $('btnProxFase4').style.display='none';
+  document.querySelectorAll('#cenaAncoragem .ancora-ponto').forEach(g=>{
+    g.onclick = ()=>{
+      const id = g.dataset.id;
+      if(id==='certificado'){
+        addPontos(20);
+        feedback($('fbFase3'),'✅ <b>Correto! +20 pontos.</b> O olhal soldado, identificado e certificado é o ponto de ancoragem adequado: resiste à carga exigida e está acima da cabeça, reduzindo a distância de queda. Guarda-corpos, corrimãos e tubulações de processo <b>não</b> são pontos de ancoragem.', true);
+        $('btnProxFase4').style.display='inline-block';
+      } else {
+        perderVida();
+        const motivos = {
+          guardacorpo:'O guarda-corpo é proteção coletiva contra queda, mas não é dimensionado para receber o impacto de uma queda ancorada.',
+          tubulacao:'Tubulações de processo podem romper, estar pressurizadas ou aquecidas. Nunca ancore nelas.',
+          corrimao:'O corrimão serve para apoio das mãos e não resiste ao impacto de uma queda.'
+        };
+        feedback($('fbFase3'),'❌ <b>Ponto inadequado! (-1 vida)</b> '+motivos[id]+' Tente novamente.', false);
+      }
+    };
+  });
+}
+
+/* ================== FASE 4 ================== */
+const QUIZ_F4 = [
+  {p:'Ao subir a escada marinheiro, quantos pontos de contato você deve manter sempre?',
+   ops:['Dois: uma mão e um pé','Três: duas mãos e um pé, ou dois pés e uma mão','Quatro, parado o tempo todo'],
+   certa:1, exp:'A regra dos 3 pontos de contato garante estabilidade durante toda a subida e descida.'},
+  {p:'Você precisa levar uma caixa de ferramentas para a plataforma. O que fazer?',
+   ops:['Subir com a caixa em uma das mãos','Pendurar a caixa no pescoço','Içar as ferramentas com corda/sacola de içamento após subir'],
+   certa:2, exp:'As mãos devem ficar livres para a escada. Materiais sobem por içamento, nunca carregados pelo trabalhador.'},
+  {p:'Começou a chover forte e há rajadas de vento durante a atividade. Você deve:',
+   ops:['Continuar, pois a tarefa é rápida','Interromper o trabalho e descer com segurança','Tirar o cinto para descer mais rápido'],
+   certa:1, exp:'Condições climáticas adversas são condição impeditiva: o trabalho em altura deve ser interrompido (NR-35).'},
+  {p:'Durante a subida, o trava-quedas deve estar:',
+   ops:['Guardado na mochila','Conectado à linha de vida vertical e ao ponto peitoral/dorsal do cinto','Preso ao bolso da calça'],
+   certa:1, exp:'O trava-quedas acompanha o trabalhador na linha de vida e trava em caso de queda.'},
+  {p:'Você se sente tonto no meio da subida. Qual a atitude correta?',
+   ops:['Acelerar para chegar logo ao topo','Parar, manter os 3 apoios, comunicar e descer se necessário','Soltar uma das mãos para acenar por ajuda'],
+   certa:1, exp:'Mal-estar é condição impeditiva. Pare em posição segura, comunique a equipe e desça. Trabalhador pode recusar o trabalho em condição de risco (direito de recusa).'}
+];
+let idxF4=0, acertosF4=0;
+
+function montarFase4(){
+  idxF4=0; acertosF4=0;
+  $('btnProxFase5').style.display='none';
+  $('barraFase4').style.width='0%';
+  mostrarPergF4();
+}
+function mostrarPergF4(){
+  $('fbFase4').className='feedback';
+  const q = QUIZ_F4[idxF4];
+  let html = '<h2 style="font-size:18px;margin-top:8px">Pergunta '+(idxF4+1)+' de '+QUIZ_F4.length+'</h2><p style="margin:8px 0"><b>'+q.p+'</b></p>';
+  q.ops.forEach((o,i)=>{ html += '<button class="opcao" onclick="respFase4('+i+',this)">'+o+'</button>'; });
+  $('quizFase4').innerHTML = html;
+}
+function respFase4(i, btn){
+  const q = QUIZ_F4[idxF4];
+  document.querySelectorAll('#quizFase4 .opcao').forEach(b=>b.disabled=true);
+  if(i===q.certa){
+    btn.classList.add('certa');
+    acertosF4++; addPontos(4);
+    feedback($('fbFase4'),'✅ <b>+4 pontos.</b> '+q.exp, true);
+  } else {
+    btn.classList.add('errada');
+    document.querySelectorAll('#quizFase4 .opcao')[q.certa].classList.add('certa');
+    perderVida();
+    feedback($('fbFase4'),'❌ <b>(-1 vida)</b> '+q.exp, false);
+  }
+  $('barraFase4').style.width = ((idxF4+1)/QUIZ_F4.length*100)+'%';
+  setTimeout(()=>{
+    idxF4++;
+    if(idxF4 < QUIZ_F4.length) mostrarPergF4();
+    else {
+      $('quizFase4').innerHTML = '<p class="centro" style="font-size:18px">🎉 Você chegou ao topo! Acertou <b>'+acertosF4+' de '+QUIZ_F4.length+'</b> situações.</p>';
+      $('fbFase4').className='feedback';
+      $('btnProxFase5').style.display='inline-block';
+    }
+  }, 2600);
+}
+
+/* ================== FASE 5 ================== */
+const PASSOS_RESGATE = [
+  {t:'Manter a calma, avaliar a cena e garantir que é seguro se aproximar', ordem:0},
+  {t:'Acionar imediatamente a equipe de emergência/resgate (plano de emergência)', ordem:1},
+  {t:'Comunicar-se com a vítima e orientá-la a movimentar as pernas, se consciente', ordem:2},
+  {t:'Executar o resgate conforme o plano, por pessoal capacitado', ordem:3},
+  {t:'Após o resgate, manter a vítima sob avaliação e encaminhar para atendimento médico', ordem:4}
+];
+const QUIZ_TRAUMA = {
+  ops:['Porque o cinto pode se romper após alguns minutos',
+       'Pelo risco de trauma de suspensão: a restrição da circulação nas pernas pode levar à perda de consciência e à morte',
+       'Apenas por conforto, já que a posição é desagradável'],
+  certa:1,
+  exp:'A síndrome/trauma de suspensão pode evoluir rapidamente. Por isso a NR-35 exige que a empresa tenha equipe e plano de resgate para responder de imediato.'
+};
+let proxOrdem=0;
+
+function montarFase5(){
+  proxOrdem=0;
+  $('fbFase5').className='feedback';
+  $('quizTrauma').style.display='none';
+  $('btnFinal').style.display='none';
+  const lista = $('listaResgate');
+  lista.innerHTML='';
+  [...PASSOS_RESGATE].sort(()=>Math.random()-.5).forEach(p=>{
+    const d = document.createElement('div');
+    d.className='passo-resgate';
+    d.innerHTML='<div class="num">?</div><div>'+p.t+'</div>';
+    d.onclick=()=>{
+      if(d.classList.contains('ordenado')) return;
+      if(p.ordem===proxOrdem){
+        d.classList.add('ordenado');
+        d.querySelector('.num').textContent = ++proxOrdem;
+        addPontos(2);
+        if(proxOrdem===PASSOS_RESGATE.length){
+          feedback($('fbFase5'),'✅ <b>Sequência correta! +10 pontos no total.</b> Nunca tente um resgate improvisado sem avaliar a cena — um segundo acidente é comum quando o socorrista se expõe sem proteção.', true);
+          mostrarQuizTrauma();
+        }
+      } else {
+        d.classList.add('erroSeq');
+        perderVida();
+        feedback($('fbFase5'),'❌ Essa não é a próxima ação. Pense na sequência: avaliar → acionar → comunicar → resgatar → acompanhar. <i>(-1 vida)</i>', false);
+        setTimeout(()=>d.classList.remove('erroSeq'),500);
+      }
+    };
+    lista.appendChild(d);
+  });
+}
+function mostrarQuizTrauma(){
+  $('quizTrauma').style.display='block';
+  const div = $('opcoesTrauma');
+  div.innerHTML='';
+  QUIZ_TRAUMA.ops.forEach((o,i)=>{
+    const b = document.createElement('button');
+    b.className='opcao'; b.textContent=o;
+    b.onclick=()=>{
+      div.querySelectorAll('.opcao').forEach(x=>x.disabled=true);
+      if(i===QUIZ_TRAUMA.certa){
+        b.classList.add('certa'); addPontos(10);
+        feedback($('fbFase5'),'✅ <b>Exato! +10 pontos.</b> '+QUIZ_TRAUMA.exp, true);
+      } else {
+        b.classList.add('errada');
+        div.querySelectorAll('.opcao')[QUIZ_TRAUMA.certa].classList.add('certa');
+        perderVida();
+        feedback($('fbFase5'),'❌ '+QUIZ_TRAUMA.exp+' <i>(-1 vida)</i>', false);
+      }
+      $('btnFinal').style.display='inline-block';
+    };
+    div.appendChild(b);
+  });
+}
+
+/* ================== FINAL ================== */
+function finalizarJogo(){
+  $('hud').classList.remove('ativa');
+  $('certNome').textContent = estado.nome;
+  $('certPontos').textContent = estado.pontos;
+  const pct = Math.min(100, Math.round(estado.pontos/PONTOS_MAX_TOTAL*100));
+  $('certPct').textContent = pct+'%';
+  let aval;
+  if(pct>=90) aval='🏆 EXCELENTE — Você demonstrou domínio dos procedimentos de trabalho em altura!';
+  else if(pct>=70) aval='✅ BOM — Bom desempenho! Revise os pontos em que errou.';
+  else aval='⚠️ ATENÇÃO — Recomendamos refazer o simulador e revisar o conteúdo da NR-35.';
+  $('certAvaliacao').textContent = aval;
+  const d = new Date();
+  $('certData').textContent = 'Emitido em '+d.toLocaleDateString('pt-BR')+' às '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  mostrarTela('telaFinal');
+}
+</script>
+</body>
+</html>
